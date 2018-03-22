@@ -20,7 +20,7 @@ CXXFLAGS=$(OPT) -std=c++14 -Wall
 
 all: build
 
-.PHONY: clean run zip test
+.PHONY: clean run zip test test-meter test-reflect
 
 build: $(name).cc $(name).cc
 	$(CXX) $(CXXFLAGS) $(name).cc -o $(name)
@@ -33,3 +33,12 @@ zip:
 
 run:
 	make -B && ./ipk-mtrip
+
+test:
+	make -B && ./ipk-mtrip reflect -p 2632
+
+test-meter:
+	make -B && ./ipk-mtrip meter -h localhost -p 3456 -s 43 -t 12
+
+test-reflect:
+	make -B && ./ipk-mtrip reflect -p 3456
