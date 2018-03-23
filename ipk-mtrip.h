@@ -2,7 +2,7 @@
  *  @file       ipk-mtrip.h
  *  @author     Andrej Nano (xnanoa00)
  *  @date       2018-04-09
- *  @version    0.1
+ *  @version    1.0
  * 
  *  @brief IPK 2018, 2nd project - Bandwidth Measurement (Ryšavý). MTrip Header file.
  *  
@@ -67,15 +67,14 @@
   {
     private:
       mtrip_mode_t mode;
-      int m_port_num;
+      unsigned short m_port;
     
     public:
-
       // constructor
       Reflector() : mode {REFLECT_MODE} {}
 
       // usual constructor
-      Reflector(int port_num) : m_port_num {port_num} {}
+      Reflector(unsigned short port) : m_port {port} {}
 
       // virtual destructor
       ~Reflector() override {};
@@ -101,7 +100,7 @@
     private:
       mtrip_mode_t mode;
       std::string m_host_name;
-      int m_port_num;
+      unsigned short m_port;
       int m_probe_size;
       float m_measurment_time;
 
@@ -111,10 +110,10 @@
       Meter() : mode {METER_MODE} {}
 
       // usual constructor
-      Meter(std::string host_name, int port_num, int probe_size, float measurment_time)
+      Meter(std::string host_name, unsigned short port, int probe_size, float measurment_time)
         : mode {METER_MODE}, 
           m_host_name{ host_name }, 
-          m_port_num {port_num}, 
+          m_port {port}, 
           m_probe_size {probe_size}, 
           m_measurment_time {measurment_time}
       {}

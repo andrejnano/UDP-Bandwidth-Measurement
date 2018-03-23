@@ -2,7 +2,7 @@
  *  @file       ipk-mtrip.cc
  *  @author     Andrej Nano (xnanoa00)
  *  @date       2018-04-09
- *  @version    0.1
+ *  @version    1.0
  * 
  *  @brief IPK 2018, 2nd project - Bandwidth Measurement (Ryšavý). MTrip Main source file.
  *  
@@ -30,13 +30,16 @@
 
 // std libraries
 #include <iostream>
-  using std::cout;
-  using std::cerr;
-  using std::endl;
 #include <string>
-  using std::string;
 #include <unistd.h>
 #include <csignal>
+#include <sys/wait.h>
+
+// commonly used std objects.. really no need to be careful about poluting namespace
+using std::cout;
+using std::cerr;
+using std::endl;
+using std::string;
 
 // sockets API + networking libraries
 #include <sys/socket.h>
@@ -63,21 +66,78 @@ int main(int argc, char **argv)
   
   // create new runtime mtrip configuration
   std::unique_ptr<MTripConfiguration> mtrip = argument_parser(argc, argv);
-
-  // config creation failed
+  
   if(!mtrip)
-  {
     return EXIT_FAILURE;
-  }
-  else
-  {
 
-    // start the corresponding computation
-    mtrip->init();
-
-  }
+  // ENTRY POINT
+  mtrip->init();
 
   return EXIT_SUCCESS;
+}
+
+
+/**
+ * @brief Main routine of the reflector
+ * 
+ * @desc Initializes the reflector mode routine 
+ * as the active configuration
+ */
+void Reflector::init()
+{
+  cout << "[REFLECTOR]: " << CL_GREEN << "started" << RESET << endl;
+
+  // create new socket object
+  std::unique_ptr<SocketEntity> socket = std::make_unique<SocketEntity>();
+
+  // prepare the server
+  socket->setup_server(m_port);
+
+  char buffer[512];
+
+  while (true)
+  {
+    socket->recv_message(buffer, sizeof(buffer));
+    socket->send_message(buffer, sizeof(buffer));
+  }
+}
+
+
+/**
+ * @brief Main routine of the meter
+ * 
+ * @desc Initializes the measurement mode routine 
+ * as the active configuration
+ */
+void Meter::init()
+{
+  cout << "[METER]: " << CL_GREEN << "started" << RESET << endl;
+
+  // create new socket object
+  std::unique_ptr<SocketEntity> socket = std::make_unique<SocketEntity>();
+
+  // prepare the remote address
+  socket->setup_connection(m_host_name.c_str(), m_port);
+
+  // create specified size probe
+  char buffer[m_probe_size];
+
+  while (true)
+  {
+    bzero(buffer, m_probe_size);
+    printf("Please enter msg: ");
+    fgets(buffer, m_probe_size, stdin);
+
+    socket->send_message(buffer, sizeof(buffer));
+
+    bzero(buffer, m_probe_size);
+
+    socket->recv_message(buffer, sizeof(buffer));
+
+    cout << "Feedback: " << buffer << endl;
+  }
+
+  (void)m_measurment_time;
 }
 
 
@@ -111,6 +171,7 @@ std::unique_ptr<MTripConfiguration> argument_parser(int argc, char **argv)
   char c; // help
   opterr = 0; // turn off getopt errors
 
+  // METER MODE
   if (string(argv[optind]) == "meter")
   {
     optind++;
@@ -120,8 +181,8 @@ std::unique_ptr<MTripConfiguration> argument_parser(int argc, char **argv)
     
     // argument values
     string host_name;
-    int port_num;
-    int probe_size;
+    unsigned short port;
+    size_t probe_size;
     float measurment_time;
 
     while ((c = getopt(argc, argv, "h:p:s:t:")) != -1)
@@ -134,11 +195,11 @@ std::unique_ptr<MTripConfiguration> argument_parser(int argc, char **argv)
           break;
         case 'p':
           p_flag = true;
-          port_num = atoi(optarg);
+          port = static_cast<unsigned int>(atoi(optarg));
           break;
         case 's':
           s_flag = true;
-          probe_size = atoi(optarg);
+          probe_size = static_cast<size_t>(atoi(optarg));
           break;
         case 't':
           t_flag = true;
@@ -162,23 +223,23 @@ std::unique_ptr<MTripConfiguration> argument_parser(int argc, char **argv)
     // everything OK -> create new configuration
     if (h_flag && p_flag && s_flag && t_flag)
     {
-      return std::make_unique<Meter>(host_name, port_num, probe_size, measurment_time);
+      return std::make_unique<Meter>(host_name, port, probe_size, measurment_time);
     }
     else
     {
       cerr << "Not all argument options passed in." << endl;
       return nullptr;
     }
-
   }
   else
+  // REFLECT MODE
   if (string(argv[optind]) == "reflect")
   {
     optind++;
 
     // argument option + value
     bool p_flag = false;
-    unsigned int port_num;
+    unsigned int port;
 
     while ((c = getopt(argc, argv, "p:")) != -1)
     {
@@ -186,7 +247,7 @@ std::unique_ptr<MTripConfiguration> argument_parser(int argc, char **argv)
       {
         case 'p':
           p_flag = true;
-          port_num = atoi(optarg);
+          port = static_cast<unsigned int>(atoi(optarg));
           break;
         case '?':
           if (optopt == 'p')
@@ -206,7 +267,7 @@ std::unique_ptr<MTripConfiguration> argument_parser(int argc, char **argv)
     // everything OK -> create new configuration
     if (p_flag)
     {
-      return std::make_unique<Reflector>(port_num);
+      return std::make_unique<Reflector>(port);
     }
     else
     {
@@ -220,26 +281,4 @@ std::unique_ptr<MTripConfiguration> argument_parser(int argc, char **argv)
     return nullptr;
   }
   
-}
-
-/**
- * @brief Main routine of the reflector
- * 
- * @desc Initializes the reflector mode routine 
- * as the active configuration
- */
-void Reflector::init()
-{
-  cout << "[REFLECTOR]: " << CL_GREEN << "started" << RESET << endl;
-}
-
-/**
- * @brief Main routine of the meter
- * 
- * @desc Initializes the measurement mode routine 
- * as the active configuration
- */
-void Meter::init()
-{
-  cout << "[METER]: " << CL_GREEN << "started" << RESET << endl;
 }

@@ -1,13 +1,19 @@
-# + + + + + + + + + + + + + + + + + + + + +
-# Makefile for the 2. project from IPK 2018
-# + + + + + + + + + + + + + + + + + + + + +
-# Author: Andrej Nano (xnanoa00)
-# School: FIT VUT, BRNO
+# /**
+#  *  @file       Makefile
+#  *  @author     Andrej Nano (xnanoa00)
+#  *  @date       2018-04-09
+#  *  @version    1.0
+#  * 
+#  *  @brief IPK 2018, 2nd project - Bandwidth Measurement (Ryšavý). Makefile
+#  *  
+#  *  @desc Builds the executable
+#  */
 
 ZIPNAME=xnanoa00
 
 # Executable file name
-name=ipk-mtrip
+name1=ipk-mtrip
+name2=ipk-socket
 
 # compiler
 CXX=g++
@@ -20,16 +26,16 @@ CXXFLAGS=$(OPT) -std=c++14 -Wall
 
 all: build
 
-.PHONY: clean run zip test test-meter test-reflect
+.PHONY: clean run pack test test-meter test-reflect
 
-build: $(name).cc $(name).cc
-	$(CXX) $(CXXFLAGS) $(name).cc -o $(name)
+build: $(name1).cc $(name2).cc
+	$(CXX) $(CXXFLAGS) $(name1).cc $(name2).cc -o $(name1)
 
 clean:
 	rm $(ZIPNAME).zip
 
-zip:
-	zip -r $(ZIPNAME).zip *
+pack:
+	zip $(ZIPNAME).zip ipk-mtrip.cc ipk-mtrip.h ipk-socket.cc ipk-socket.h Makefile
 
 run:
 	make -B && ./ipk-mtrip

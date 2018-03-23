@@ -2,3 +2,7 @@
 *.plist
 
 ipk-mtrip.dSYM/Contents/Resources/DWARF/ipk-mtrip
+
+.vscode/settings.json
+
+ipk-mtrip
