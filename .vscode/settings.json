@@ -17,6 +17,21 @@
         "iterator": "cpp",
         "vector": "cpp",
         "ostream": "cpp",
-        "iostream": "cpp"
-    }
+        "iostream": "cpp",
+        "__bit_reference": "cpp",
+        "__hash_table": "cpp",
+        "__split_buffer": "cpp",
+        "hash_map": "cpp",
+        "list": "cpp",
+        "string": "cpp",
+        "string_view": "cpp",
+        "unordered_map": "cpp",
+        "chrono": "cpp",
+        "bitset": "cpp",
+        "cstddef": "cpp",
+        "type_traits": "cpp",
+        "utility": "cpp",
+        "__locale": "cpp"
+    },
+    "C_Cpp.intelliSenseEngineFallback": "Disabled"
 }

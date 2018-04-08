@@ -37,24 +37,21 @@
             
             inline ~SocketEntity() { close_socket(); }
 
+            // returns socket file descriptor
+            int get_fd();
+
             // closes the socket
             inline void close_socket() { close(socket_fd); }
 
             // interface for communication w/ other socket
             ssize_t send_message(char* buffer, size_t buf_size);
-            ssize_t recv_message(char* buffer, size_t buf_size);
+            ssize_t recv_message(char* buffer, size_t buf_size, bool save_connection = false);
 
             // setup and bind a server on this host:port
             int setup_server(unsigned short port);
             
             // prepare address 
             int setup_connection(const char* hostname, unsigned short port);
-
-            // creates dedicated socket for every new connection
-            std::unique_ptr<SocketEntity> accept_connection();
-
-            // returns the socket file descriptor
-            int get_fd();
     };
 
 #endif // IPK_SOCKET_H_

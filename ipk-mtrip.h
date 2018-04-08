@@ -19,10 +19,17 @@
 #ifndef IPK_MTRIP_H_
 #define IPK_MTRIP_H_
 
+  #include <memory>
+  #include <string>
+  #include <vector>
   #include <iostream>
   using std::cout;
   using std::cerr;
   using std::endl;
+
+  // socket abstraction
+  #include "ipk-socket.h"
+
 
   // terminal output ANSI colors
   #define CL_RED     "\x1b[31m"
@@ -82,6 +89,9 @@
       // initializes the reflecting mode routine 
       void init() override;
 
+      // receive packets of fixed size for 1 second and count them
+      long recv_packet_group(std::shared_ptr<SocketEntity> socket, int probe_size);
+
       // request mode of the current program runtime
       inline mtrip_mode_t get_mode() override { return mode; }
   };
@@ -102,7 +112,7 @@
       std::string m_host_name;
       unsigned short m_port;
       int m_probe_size;
-      float m_measurment_time;
+      int m_measurment_time;
 
     public:
 
@@ -110,7 +120,7 @@
       Meter() : mode {METER_MODE} {}
 
       // usual constructor
-      Meter(std::string host_name, unsigned short port, int probe_size, float measurment_time)
+      Meter(std::string host_name, unsigned short port, int probe_size, int measurment_time)
         : mode {METER_MODE}, 
           m_host_name{ host_name }, 
           m_port {port}, 
@@ -123,6 +133,12 @@
 
       // initializes the measurement mode routine 
       void init() override;
+
+      // get RoundTripTime 
+      double RTT(std::shared_ptr<SocketEntity> socket, size_t buffer_size);
+      
+      // send group of packets at a 'packet_rate' for 1 second
+      long send_packet_group(std::shared_ptr<SocketEntity> socket, long long packet_rate, int probe_size);
 
       // request mode of the current program runtime
       inline mtrip_mode_t get_mode() override { return mode;}
@@ -145,6 +161,20 @@
    *  @return program configuration distinct for each mode
    */
   std::unique_ptr<MTripConfiguration> argument_parser(int argc, char **argv);
+
+
+  /**
+   * @brief Print startup informations
+   * 
+   */
+  void print_start_info(string host_name, unsigned short port, int measurment_time, int probe_size);
+
+
+  /**
+   * @brief Print results information
+   * 
+   */
+  void print_result_info(int probe_size, int measurement_time, long packets_sent, long packets_recv, std::vector<double> speed_list, std::vector<double> rtt_list);
 
 
 #endif // IPK_MTRIP_H
