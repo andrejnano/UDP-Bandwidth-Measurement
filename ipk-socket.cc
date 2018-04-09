@@ -153,6 +153,7 @@ ssize_t SocketEntity::recv_message(char* buffer, size_t buf_size, bool save_conn
 {
   if (save_connection)
   {
+
     // clear existing remote address 
     remote.sin_family = AF_UNSPEC;
     connect(socket_fd, reinterpret_cast<sockaddr*>(&remote), remote_length);

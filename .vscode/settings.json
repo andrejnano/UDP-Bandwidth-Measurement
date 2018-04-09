@@ -31,7 +31,10 @@
         "cstddef": "cpp",
         "type_traits": "cpp",
         "utility": "cpp",
-        "__locale": "cpp"
+        "__locale": "cpp",
+        "iomanip": "cpp",
+        "limits": "cpp",
+        "ratio": "cpp"
     },
     "C_Cpp.intelliSenseEngineFallback": "Disabled"
 }

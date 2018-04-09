@@ -10,6 +10,10 @@
 #ifndef IPK_SOCKET_H_
 #define IPK_SOCKET_H_
 
+    #include <sys/socket.h> // Core socket functions and data structures.
+    #include <sys/types.h> 
+    #include <netinet/in.h>
+    
     /**
      * @brief Socket data & operations wrapper
      * 
@@ -26,8 +30,8 @@
     {
         private:
             int socket_fd;
-            sockaddr_in local;  // from server view -> its address
-            sockaddr_in remote; // from clients view -> server address, from server view -> client address
+            struct sockaddr_in local;  // from server view -> its address
+            struct sockaddr_in remote; // from clients view -> server address, from server view -> client address
             socklen_t local_length;
             socklen_t remote_length;
             hostent* hp;

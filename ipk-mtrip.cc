@@ -66,6 +66,28 @@ using Clock = std::chrono::high_resolution_clock;
 
 /*****************************************************************************/
 
+// Simple timer, starts on object creation and ends + outputs on destruction
+struct Timer
+{
+    std::chrono::high_resolution_clock::time_point start, end;
+    std::chrono::duration<float> duration;
+    float miliseconds;
+
+    Timer()
+    {
+      start = std::chrono::high_resolution_clock::now();
+    }
+
+    ~Timer()
+    {
+      end = std::chrono::high_resolution_clock::now();
+      duration = end - start;
+
+      float miliseconds = duration.count() * 1000.0f;
+      cout << "\n~~ This took " << miliseconds << "ms to execute" << endl;
+    }
+};
+
 /**
  *  @brief Main entry point, handles common routine and then delegates to runtime modes. 
  *  
@@ -75,6 +97,8 @@ using Clock = std::chrono::high_resolution_clock;
  */
 int main(int argc, char **argv)
 {
+  Timer debug_timer;
+  
   // function to handle interrupt
   signal(SIGINT, interrupt_handler);
   
@@ -122,6 +146,9 @@ void Reflector::init()
 
   while (true)
   {
+
+    cout << " waiting for meter... "<< endl;
+
     // RECEIVE -> probe size
     bytes_recv = socket->recv_message(reinterpret_cast<char*>(&probe_size), sizeof(probe_size), SAVE_CONNECTION);
     if (bytes_recv == -1) { cerr << "ERROR: ." << endl; continue;}
@@ -131,6 +158,11 @@ void Reflector::init()
     bytes_recv = socket->recv_message(reinterpret_cast<char*>(&total_time), sizeof(total_time));
     if (bytes_recv == -1) { cerr << "ERROR: ." << endl; continue;}
 
+    cout << "-------------------------------------"<< endl;
+    cout << "[INFO] new measurement initiated"<< endl;
+    cout << "\t" << BOLD << "probe_size" << RESET << "= " << probe_size << endl;
+    cout << "\t" << BOLD << "total_time" << RESET << "= " << total_time << endl;
+    cout << "-------------------------------------"<< endl;
     // from now on, recv should be used with 'probe_size' value
     char probe_buffer[probe_size];
     long packets_recv { 0 };
@@ -141,7 +173,9 @@ void Reflector::init()
     probe_buffer[1] = 'K';
     socket->send_message(probe_buffer, probe_size);
 
-
+    /* ------------------------------------------ */
+      // MEASUREMENT ROUNDS
+    /* ------------------------------------------ */
     while (current_round < total_time)
     {
       // first RTT, just reflect
@@ -150,13 +184,16 @@ void Reflector::init()
 
       // then Bandwidth, collect/count then respond with number that arrived
       packets_recv = recv_packet_group(socket, probe_size);
-      cout << "packets received: " << packets_recv << endl;
+      cout << " ~ Packets received: " << packets_recv << endl;
       // respond
       socket->send_message(reinterpret_cast<char*>(&packets_recv), sizeof(packets_recv));
+      
+      // no packet received or connection interrupted
+      if (packets_recv <= 0) { break; }
 
       current_round++;
     }
-    cout << " END ........ " << endl;
+    cout << "[INFO] measurement ended"<< endl;
   }
 
 }
@@ -166,8 +203,8 @@ long Reflector::recv_packet_group(std::shared_ptr<SocketEntity> socket, int prob
 {
   // timeout when stuck.. 
   struct timeval timeout;
-  timeout.tv_sec = 1;
-  timeout.tv_usec = 0;
+  timeout.tv_sec = 0;
+  timeout.tv_usec = 50000;
   setsockopt(socket->get_fd(), SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
 
   char probe_buffer[probe_size];
@@ -175,12 +212,15 @@ long Reflector::recv_packet_group(std::shared_ptr<SocketEntity> socket, int prob
   long packets_recv { 0 };
   int bytes_recv {0};
   
-  socket->recv_message(probe_buffer, probe_size);
-  packets_recv++;
+  if ( socket->recv_message(probe_buffer, probe_size) > 0 )
+    packets_recv++;
+  else
+    return -1;
 
   auto t1 = Clock::now();
   auto t2 = Clock::now();
 
+  // receive & count packets for 1 second
   while (std::chrono::duration_cast<std::chrono::milliseconds>(t2 - t1).count() < 1000)
   {
     bytes_recv = socket->recv_message(probe_buffer, probe_size);
@@ -190,9 +230,18 @@ long Reflector::recv_packet_group(std::shared_ptr<SocketEntity> socket, int prob
 
     t2 = Clock::now();
   }
+  
+  // catching still arriving packets out of interval
+  while (true)
+  {
+    bytes_recv = socket->recv_message(probe_buffer, probe_size);
+    if (bytes_recv < probe_size)
+      break;
+  }
 
-  // set back to default
+  // set timeout back to default
   timeout.tv_sec = 0;
+  timeout.tv_usec = 0;
   setsockopt(socket->get_fd(), SOL_SOCKET, SO_RCVTIMEO, &timeout, sizeof(timeout));
 
   return packets_recv;
@@ -256,49 +305,73 @@ void Meter::init()
 
 
   int current_round {0};
-  long long packet_rate {10000}; // 1s = 1 000 000 us ... -> packet send gap will be 1 000 000 / packet_rate us 
-  long long old_rate {100};
+  long long packet_rate {0}; // 1s = 1 000 000 us ... -> packet send gap will be 1 000 000 / packet_rate us 
+  long long min = {1000}; // init -> 10 000
+  long long cur = {3000}; // init -> 20 000
+  long long max = {5000}; // init -> 50 000
+
+  packet_rate = cur;
 
   double rtt {0.0};
 
   while (current_round < m_measurment_time)
   {
-    cout << " [" << current_round << ". round] ";
+    cout << "\n[" << BOLD << current_round+1 << ". round" << RESET << "]\n" << endl;
     
     // calculate RTT
     rtt = RTT(socket, m_probe_size);
     rtt_list.push_back(rtt);
-    cout << "RTT: " << rtt << "ms" << endl;
+    cout << std::setw(20) << " [RTT]: " << rtt << "ms" << endl;
 
     // send group @ rate
     packets_sent = send_packet_group(socket, packet_rate, m_probe_size);
 
-    cout << "got here" << endl;
-
     // get response how many were received
     socket->recv_message(reinterpret_cast<char*>(&packets_recv), sizeof(packets_recv));
-    cout << "packets received: " << packets_recv << endl;
+
+    cout << std::setw(20) << " [Packets]: " << packets_recv << "/" << packets_sent << " (recv/sent)" << endl;
+    cout << std::setw(20) << " [Loss]: " << std::setprecision(2) << std::fixed << 100 - (packets_recv/(double long)packets_sent*100) << "%" << endl;
+    
     
     // calculate the speed in Mbits
-    double speed = packets_recv * m_probe_size * 8 / 1000 / 1000;
+    double speed = packets_recv * m_probe_size * 8 / (double)1000 / (double)1000;
     speed_list.push_back(speed);
 
-    cout << "upload speed: " << speed << " Mb/s" << endl;
+    cout << std::setw(20) << " [Upload speed]: " << std::setprecision(6) << std::fixed << speed << " Mb/s" << endl;
     
-    cout << "old rate: " << packet_rate << endl;
-
+    cout << std::setw(20) << " [Current rate]: " << packet_rate << " packets/second" << endl;
+    
+    /* ------------ */
     // adjust rate
-    if (packets_recv < packets_sent) // packets were lost
+    /* ------------ */
+
+    // packets were lost
+    if (packets_recv < packets_sent * 0.990)  // accept small packet loss
     {
-      packet_rate = (old_rate + packet_rate ) / 2;
+      max = cur;
+      cur = (min + cur) / 2;
+
+      min = min * (packets_recv/(double long)packets_sent); // percentage of loss
+
+      packet_rate = cur;
+      cout << std::setw(20) << " [New rate]: " << CL_RED << packet_rate << RESET << " packets/second"
+      << "[ -" << CL_RED << std::setprecision(2) << std::fixed << std::setw(4) << 100 - (packet_rate/(double)max*100) << "%" << RESET << " ]\n" << endl;
     }
     else // no packets lost, increase the rate
     {
-      old_rate = packet_rate;
-      packet_rate = packet_rate * 2;
-    }
+      min = cur;
+      cur = (cur + max) / 2;
+      
+      if (max < 40'000'000) // limit for localhost, as rate keeps going up but speed does not anymore
+        max = max * 1.618; //:) 
+      else
+        max = 40'000'000;
 
-    cout << "new rate: " << packet_rate << endl;
+      packet_rate = cur;
+      cout << std::setw(20) << " [New rate]: " << CL_GREEN << packet_rate << RESET << " packets/second"
+      << "[ +" << CL_GREEN << std::setprecision(2) << std::fixed << std::setw(4)<< (packet_rate/(double)min*100) - 100.0 << "%" << RESET << " ]\n" << endl;
+    
+    }
 
     total_packets_sent += packets_sent;
     total_packets_recv += packets_recv;
@@ -359,7 +432,7 @@ void print_start_info(string host_name, unsigned short port, int measurment_time
 void print_result_info(int probe_size, int measurement_time, long packets_sent, long packets_recv, std::vector<double> speed_list, std::vector<double> rtt_list)
 {
   cout << "\n\n--------------------------------------------------------------------------------" << endl;
-  cout << "  " << BOLD << "FINAL RESULTS" << RESET << endl;
+  cout << "  " << BOLD << "FINAL RESULTS" << RESET << " (for " << probe_size << "B probe packets & " << measurement_time << "s measurement test)" << endl;
   cout << "--------------------------------------------------------------------------------\n" << endl;
 
   cout << "   " << CL_BLUE << "PACKETS & DATA\n" << RESET << endl;
@@ -385,7 +458,7 @@ void print_result_info(int probe_size, int measurement_time, long packets_sent, 
 
   cout << "\tSTD DEV: "<< rtt_std_dev << " ms\n" << endl;
 
-  cout << "   " << CL_YELLOW << "AVAILABLE BANDWIDTH\n " << RESET << endl;
+  cout << "   " << CL_GREEN<< "AVAILABLE BANDWIDTH\n " << RESET << endl;
   cout << "\tMAX SPEED: "<< *std::max_element(speed_list.begin(), speed_list.end()) << " Mb/s" << endl;
   cout << "\tMIN SPEED: "<< *std::min_element(speed_list.begin(), speed_list.end()) << " Mb/s" << endl;
 
