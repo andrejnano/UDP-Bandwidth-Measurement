@@ -28,6 +28,7 @@ using std::string;
 
 // socket libraries
 #include <sys/socket.h> // Core socket functions and data structures.
+#include <sys/types.h> 
 #include <netinet/in.h> // AF_INET and AF_INET6
 #include <arpa/inet.h>  // Functions for manipulating numeric IP addresses.
 #include <netdb.h>      // DNS lookup
@@ -50,7 +51,17 @@ SocketEntity::SocketEntity()
   if( (socket_fd = socket(AF_INET, SOCK_DGRAM, 0) ) <= 0 )
   {
     cerr << "socket creation failed" << endl;
+    return;
   }
+
+}
+
+/**
+ * @brief Returns the file descriptor for this socket
+ */
+int SocketEntity::get_fd()
+{
+  return socket_fd;
 }
 
 
@@ -66,7 +77,6 @@ int SocketEntity::setup_server(unsigned short port)
   int optval = 1;
   setsockopt(socket_fd, SOL_SOCKET, SO_REUSEADDR, reinterpret_cast<const void *>(&optval) , sizeof(int));
 
-  // 1. UDP server.. needs to bind and use this kind of address struct
   local.sin_family = AF_INET;
   local.sin_addr.s_addr = htonl(INADDR_ANY);
   local.sin_port = htons(port);
@@ -91,7 +101,8 @@ int SocketEntity::setup_server(unsigned short port)
  */
 int SocketEntity::setup_connection(const char* hostname, unsigned short port)
 {
-  hp = gethostbyname(hostname); // DNS find the host by name, return IP
+  // DNS find the host by name, return IP
+  hp = gethostbyname(hostname); 
   if (!hp)
   {
     std::cerr << "[ERROR]: No such host as " << hostname << std::endl;
@@ -102,6 +113,14 @@ int SocketEntity::setup_connection(const char* hostname, unsigned short port)
   remote.sin_family = AF_INET;
   std::memcpy(&remote.sin_addr, hp->h_addr, hp->h_length);
   remote.sin_port = htons(port);
+
+  // connect to udp remote socket -> then only use send instead of sendto..
+  if ( connect(socket_fd, reinterpret_cast<sockaddr*>(&remote), remote_length) == -1 )
+  {
+    close_socket();
+    cerr << "connect() error inside setup_connection method" << endl;
+    return EXIT_FAILURE;
+  }
 
   return EXIT_SUCCESS;
 }
@@ -116,7 +135,7 @@ int SocketEntity::setup_connection(const char* hostname, unsigned short port)
  */
 ssize_t SocketEntity::send_message(char* buffer, size_t buf_size)
 {
-  return sendto(socket_fd, buffer, buf_size, 0, reinterpret_cast<sockaddr*>(&remote), remote_length);
+  return send(socket_fd, buffer, buf_size, 0);
 }
 
 
@@ -125,9 +144,33 @@ ssize_t SocketEntity::send_message(char* buffer, size_t buf_size)
  * 
  * @param buffer pointer to the data to send
  * @param buf_size size being received
+ * @param save_connection option to add the host from which msg was received
+ *        as a 'remote' and further just use simple send without passing addr.
+ *        every time
  * @return number of bytes received
  */
-ssize_t SocketEntity::recv_message(char* buffer, size_t buf_size)
+ssize_t SocketEntity::recv_message(char* buffer, size_t buf_size, bool save_connection)
 {
-  return recvfrom(socket_fd, buffer, buf_size, 0, reinterpret_cast<sockaddr*>(&remote), &remote_length);
+  if (save_connection)
+  {
+
+    // clear existing remote address 
+    remote.sin_family = AF_UNSPEC;
+    connect(socket_fd, reinterpret_cast<sockaddr*>(&remote), remote_length);
+    memset(&remote, 0, sizeof(remote));
+    
+    int bytes_received = recvfrom(socket_fd, buffer, buf_size, 0, reinterpret_cast<sockaddr*>(&remote), &remote_length);
+
+    // connect to udp remote socket -> then only use send instead of sendto..
+    if ( connect(socket_fd, reinterpret_cast<sockaddr*>(&remote), remote_length) == -1 )
+    {
+      cerr << "connect() error inside setup_connection method" << endl;
+    }
+
+    return bytes_received;
+  }
+  else
+  {
+    return recv(socket_fd, buffer, buf_size, 0);
+  }
 }

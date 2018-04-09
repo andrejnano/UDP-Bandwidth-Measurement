@@ -1,0 +1,63 @@
+PATHLOAD SOURCE CODE structure
+
+/* sockets preparation, exchange information (latency, mss), then start measurement */
+pathload_snd.c
+
+  // SETUP
+
+    argument parsing
+    measure gettimeofday latency
+    create TCP socket
+      - make it reausable
+      - assign address struct
+      - bind
+      - listen
+    create UDP socket
+      - assign address struct
+      - bind
+      - set socket option (send_buff_sz) to 40 000 or /2 -> 20 000
+
+
+  // BID DO WHILE LOOP ~= 1 measurement ? (probably)
+    
+      waiting until receiver attempts to connect, starting new measurement cycle
+      get connection -> -> ->
+        
+        ~ save local hostname to pkt_buf (idk why)
+        check DNS for receiver address (saved by accept() earlier)
+        if host exists continue, otherwise error
+
+        assign same address (probz IP) and predefined port to UDP address struct
+
+        connect to UDP socket
+
+        make TCP socket non blocking (fcntl)
+
+        find out what is the maximum segment size for TCP socket -> save to mss variable
+          if mss == 0 || 1448 -> set to 1472 ( ETHERNET SIZED MTU )
+          else add 12 to mss ? ? ? ?  Y THO ?!
+
+        tell receiver senders max packet sz (mss)
+
+        get receivers max packet sz and CHOOSE THE SMALLER ONE 
+
+        tell receiver senders 'send latency'
+
+        wait for receiver to start ADR measurement ? ??  Asymptotic Dispersion Rate 
+
+        ------ FINALLY ---- 
+
+        AVAILABLE BANDWIDTH MEASUREMENT START
+
+          send_fleet() 
+
+
+
+/* actual measurement */
+pathload_snd_func.c
+
+
+
+
+
+

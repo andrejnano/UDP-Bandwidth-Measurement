@@ -10,6 +10,10 @@
 #ifndef IPK_SOCKET_H_
 #define IPK_SOCKET_H_
 
+    #include <sys/socket.h> // Core socket functions and data structures.
+    #include <sys/types.h> 
+    #include <netinet/in.h>
+    
     /**
      * @brief Socket data & operations wrapper
      * 
@@ -26,8 +30,8 @@
     {
         private:
             int socket_fd;
-            sockaddr_in local;  // from server view -> its address
-            sockaddr_in remote; // from clients view -> server address, from server view -> client address
+            struct sockaddr_in local;  // from server view -> its address
+            struct sockaddr_in remote; // from clients view -> server address, from server view -> client address
             socklen_t local_length;
             socklen_t remote_length;
             hostent* hp;
@@ -37,24 +41,21 @@
             
             inline ~SocketEntity() { close_socket(); }
 
+            // returns socket file descriptor
+            int get_fd();
+
             // closes the socket
             inline void close_socket() { close(socket_fd); }
 
             // interface for communication w/ other socket
             ssize_t send_message(char* buffer, size_t buf_size);
-            ssize_t recv_message(char* buffer, size_t buf_size);
+            ssize_t recv_message(char* buffer, size_t buf_size, bool save_connection = false);
 
             // setup and bind a server on this host:port
             int setup_server(unsigned short port);
             
             // prepare address 
             int setup_connection(const char* hostname, unsigned short port);
-
-            // creates dedicated socket for every new connection
-            std::unique_ptr<SocketEntity> accept_connection();
-
-            // returns the socket file descriptor
-            int get_fd();
     };
 
 #endif // IPK_SOCKET_H_

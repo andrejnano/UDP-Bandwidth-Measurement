@@ -21,8 +21,8 @@ CXX=g++
 # Optimalization level
 OPT=-O2
 
-# Compiling flags
-CXXFLAGS=$(OPT) -std=c++14 -Wall
+# Compiling flags, libstdc++ statically linked as required for eva.fit.vutbr.cz
+CXXFLAGS=-static-libstdc++ -lpthread $(OPT) -std=c++14 -Wall 
 
 all: build
 
